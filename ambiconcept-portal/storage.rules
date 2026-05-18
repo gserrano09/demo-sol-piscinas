@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function userRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function userCompany() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.companyId;
+    }
+
+    match /companies/{companyId}/products/{productId}/{type}/{fileName} {
+      allow read: if request.auth != null && (
+        isAdmin() ||
+        (userCompany() == companyId && (
+          (userRole() == 'distribuidor' && type in ['renders','doc_tecnica','doc_comercial','material_redes_sociais','catalogos']) ||
+          (userRole() == 'parceiro'     && type in ['renders','doc_comercial','campanhas_sensibilizacao'])
+        ))
+      );
+      allow write: if request.auth != null && isAdmin();
+    }
+  }
+}

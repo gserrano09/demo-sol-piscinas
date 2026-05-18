@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth()  { return request.auth != null; }
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isRole(role) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    function sameCompany(companyId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+
+    // Users
+    match /users/{uid} {
+      allow read:  if isAdmin() || request.auth.uid == uid;
+      allow write: if isAdmin();
+    }
+
+    // Companies
+    match /companies/{id} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Products
+    match /products/{id} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Resources — read restricted by role
+    match /resources/{id} {
+      allow read: if isAdmin() ||
+        (isAuth() && sameCompany(resource.data.companyId) && (
+          (isRole('distribuidor') && resource.data.type in ['renders','doc_tecnica','doc_comercial','social','catalogos']) ||
+          (isRole('parceiro')     && resource.data.type in ['renders','doc_comercial','campanhas'])
+        ));
+      allow write: if isAdmin();
+    }
+  }
+}
